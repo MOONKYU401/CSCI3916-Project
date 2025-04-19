@@ -4,7 +4,7 @@ const bodyParser = require('body-parser');
 const passport = require('passport');
 const authJwtController = require('./auth_jwt'); // You're not using authController, consider removing it
 const jwt = require('jsonwebtoken');
-const User = require('./Users');
+const User = require('./User');
 const weather = require('./weather'); // You're not using Movie, consider removing it
 
 const app = express();
