@@ -5,7 +5,7 @@ const passport = require('passport');
 const authJwtController = require('./auth_jwt'); // You're not using authController, consider removing it
 const jwt = require('jsonwebtoken');
 const User = require('./User');
-const Weather = require('./Weather'); 
+const Weather = require('./weather'); 
 
 const app = express();
 app.use(bodyParser.json());
