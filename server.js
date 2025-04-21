@@ -1,79 +1,120 @@
 require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
 const passport = require('passport');
-const authJwtController = require('./auth_jwt'); // You're not using authController, consider removing it
 const jwt = require('jsonwebtoken');
-const User = require('./User');
-const Weather = require('./weather'); 
-
+const User = require('./User'); // Make sure this has the location field
+const authJwtController = require('./auth_jwt'); // Included for later use
 const app = express();
+
+const PORT = process.env.PORT || 10000;
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
-
 app.use(passport.initialize());
 
 const router = express.Router();
 
-// Removed getJSONObjectForMovieRequirement as it's not used
+// MongoDB connection
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.DB);
+    console.log(' Connected to MongoDB');
+  } catch (err) {
+    console.error(' Could not connect to MongoDB:', err.message);
+    process.exit(1);
+  }
+};
 
-router.post('/signup', async (req, res) => { // Use async/await
+// Signup route
+router.post('/signup', async (req, res) => {
   if (!req.body.username || !req.body.password) {
-    return res.status(400).json({ success: false, msg: 'Please include both username and password to signup.' }); // 400 Bad Request
+    return res.status(400).json({ success: false, msg: 'Please include both username and password to signup.' });
   }
 
   try {
-    const user = new User({ // Create user directly with the data
+    const user = new User({
       name: req.body.name,
       username: req.body.username,
       password: req.body.password,
+      location: req.body.location || '' // allow optional location on signup
     });
 
-    await user.save(); // Use await with user.save()
-
-    res.status(200).json({ success: true, msg: 'Successfully created new user.' }); // 201 Created
+    await user.save();
+    res.status(201).json({ success: true, msg: 'Successfully created new user.' });
   } catch (err) {
-    if (err.code === 11000) { // Strict equality check (===)
-      return res.status(409).json({ success: false, message: 'A user with that username already exists.' }); // 409 Conflict
+    if (err.code === 11000) {
+      res.status(409).json({ success: false, msg: 'A user with that username already exists.' });
     } else {
-      console.error(err); // Log the error for debugging
-      return res.status(500).json({ success: false, message: 'Something went wrong. Please try again later.' }); // 500 Internal Server Error
+      console.error('Signup error:', err);
+      res.status(500).json({ success: false, msg: 'Internal server error.' });
     }
   }
 });
 
+// Signin route
+router.post('/signin', async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.body.username }).select('name username password');
+    if (!user) {
+      return res.status(401).json({ success: false, msg: 'User not found.' });
+    }
 
-router.post('/signin', function (req, res) {
-    var userNew = new User();
-    userNew.username = req.body.username;
-    userNew.password = req.body.password;
+    user.comparePassword(req.body.password, (err, isMatch) => {
+      if (err) return res.status(500).json({ success: false, msg: 'Error comparing password.' });
 
-    User.findOne({ username: userNew.username }).select('name username password').exec(function(err, user) {
-        if (err) {
-            res.send(err);
-        }
-
-        user.comparePassword(userNew.password, function(isMatch) {
-            if (isMatch) {
-                var userToken = { id: user.id, username: user.username };
-                var token = jwt.sign(userToken, process.env.SECRET_KEY);
-                res.json ({success: true, token: 'JWT ' + token});
-            }
-            else {
-                res.status(401).send({success: false, msg: 'Authentication failed.'});
-            }
-        })
-    })
+      if (isMatch) {
+        const userToken = { id: user._id, username: user.username };
+        const token = jwt.sign(userToken, process.env.SECRET_KEY);
+        res.json({ success: true, token: 'JWT ' + token });
+      } else {
+        res.status(401).json({ success: false, msg: 'Authentication failed.' });
+      }
+    });
+  } catch (err) {
+    console.error('Signin error:', err);
+    res.status(500).json({ success: false, msg: 'Internal server error.' });
+  }
 });
 
+// Mock weather service
+const getWeather = async (location) => {
+  // Replace with real API call later
+  return {
+    location,
+    temperature: '15°C',
+    condition: 'Partly Cloudy'
+  };
+};
 
+// Public weather route
+router.get('/weather', async (req, res) => {
+  try {
+    let location = 'Denver'; // default
 
-  
+    if (req.query.username) {
+      const user = await User.findOne({ username: req.query.username }).select('location');
+      if (user && user.location) {
+        location = user.location;
+      }
+    }
+
+    const weather = await getWeather(location);
+    res.json({ success: true, weather });
+  } catch (err) {
+    console.error('Weather error:', err);
+    res.status(500).json({ success: false, msg: 'Failed to fetch weather data.' });
+  }
+});
+
 app.use('/', router);
 
-const PORT = process.env.PORT || 8080; // Define PORT before using it
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+// Start server after DB connection
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(` Server is running on port ${PORT}`);
+  });
 });
 
-module.exports = app; // for testing only
+module.exports = app;
