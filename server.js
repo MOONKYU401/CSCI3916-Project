@@ -4,8 +4,8 @@ const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
-const User = require('./User'); // Make sure this has the location field
-const authJwtController = require('./auth_jwt'); // Included for later use
+const User = require('./User');
+const authJwtController = require('./auth_jwt');
 const app = express();
 
 const PORT = process.env.PORT || 10000;
@@ -20,9 +20,9 @@ const router = express.Router();
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.DB);
-    console.log(' Connected to MongoDB');
+    console.log('Connected to MongoDB');
   } catch (err) {
-    console.error(' Could not connect to MongoDB:', err.message);
+    console.error('Could not connect to MongoDB:', err.message);
     process.exit(1);
   }
 };
@@ -38,7 +38,7 @@ router.post('/signup', async (req, res) => {
       name: req.body.name,
       username: req.body.username,
       password: req.body.password,
-      location: req.body.location || '' // allow optional location on signup
+      location: req.body.location || ''
     });
 
     await user.save();
@@ -78,41 +78,40 @@ router.post('/signin', async (req, res) => {
   }
 });
 
-// Mock weather service
+// Static/mock weather service
 const getWeather = async (location) => {
-  const apiKey = process.env.OPENWEATHER_API_KEY;
+  // Mock weather data per location
+  const mockWeather = {
+    seoul: {
+      temperature: '22°C',
+      condition: 'cloudy',
+      icon: 'http://openweathermap.org/img/wn/03d@2x.png'
+    },
+    tokyo: {
+      temperature: '24°C',
+      condition: 'clear sky',
+      icon: 'http://openweathermap.org/img/wn/01d@2x.png'
+    },
+    denver: {
+      temperature: '14°C',
+      condition: 'sunny',
+      icon: 'http://openweathermap.org/img/wn/01d@2x.png'
+    }
+  };
 
-  try {
-    const response = await axios.get(
-      'https://api.openweathermap.org/data/2.5/weather',
-      {
-        params: {
-          q: location,
-          appid: apiKey,
-          units: 'metric'
-        }
-      }
-    );
+  const key = location.toLowerCase();
+  const data = mockWeather[key] || mockWeather['denver'];
 
-    const data = response.data;
-
-    return {
-      location: `${data.name}, ${data.sys.country}`,
-      temperature: `${data.main.temp}°C`,
-      condition: data.weather[0].description,
-      icon: `http://openweathermap.org/img/wn/${data.weather[0].icon}@2x.png`
-    };
-
-  } catch (err) {
-    console.error('OpenWeatherMap error:', err.response?.data || err.message);
-    throw new Error(`Could not fetch weather for location: ${location}`);
-  }
+  return {
+    location,
+    ...data
+  };
 };
 
-// Public weather route
+// Public weather route using mock data
 router.get('/weather', async (req, res) => {
   try {
-    let location = 'Denver'; // default
+    let location = 'Denver';
 
     if (req.query.username) {
       const user = await User.findOne({ username: req.query.username }).select('location');
@@ -134,7 +133,7 @@ app.use('/', router);
 // Start server after DB connection
 connectDB().then(() => {
   app.listen(PORT, () => {
-    console.log(` Server is running on port ${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
   });
 });
 
