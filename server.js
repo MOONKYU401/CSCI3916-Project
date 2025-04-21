@@ -125,6 +125,81 @@ router.get('/weather', async (req, res) => {
   }
 });
 
+// POST /weather/create - Add weather data
+router.post('/weather/create', async (req, res) => {
+  const {
+    date,
+    location,
+    weatherType,
+    temperature,
+    description,
+    humidity,
+    windSpeed
+  } = req.body;
+
+  // Basic validation
+  if (!date || !location || !weatherType || temperature == null) {
+    return res.status(400).json({
+      success: false,
+      msg: 'Required fields: date, location, weatherType, temperature'
+    });
+  }
+
+  try {
+    const newWeather = new Weather({
+      date,
+      location,
+      weatherType,
+      temperature,
+      description,
+      humidity,
+      windSpeed
+    });
+
+    await newWeather.save();
+    res.status(201).json({ success: true, msg: 'Weather data saved successfully.' });
+  } catch (err) {
+    console.error('Weather insert error:', err.message);
+    res.status(500).json({ success: false, msg: 'Failed to save weather data.' });
+  }
+});
+
+
+connectDB();
+
+const WeatherSchema = new mongoose.Schema({
+  date: {
+    type: Date,
+    required: true,
+  },
+  location: {
+    type: String,
+    required: true,
+  },
+  weatherType: {
+    type: String,
+    enum: [
+      'Thunderstorm', 'Drizzle', 'Rain', 'Snow', 'Clear', 'Clouds',
+      'Mist', 'Smoke', 'Haze', 'Dust', 'Fog', 'Sand', 'Ash',
+      'Squall', 'Tornado'
+    ],
+    required: true,
+  },
+  temperature: {
+    type: Number, // In Celsius
+    required: true,
+  },
+  description: {
+    type: String, // e.g., "light rain", "few clouds"
+  },
+  humidity: {
+    type: Number, // Percentage (0–100)
+  },
+  windSpeed: {
+    type: Number, // In m/s
+  },
+});
+
 app.use('/', router);
 
 // Start server after DB connection
