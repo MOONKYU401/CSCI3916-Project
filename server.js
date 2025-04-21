@@ -80,33 +80,30 @@ router.post('/signin', async (req, res) => {
 
 // Static/mock weather service
 const getWeather = async (location) => {
-  // Mock weather data per location
-  const mockWeather = {
-    seoul: {
-      temperature: '22°C',
-      condition: 'cloudy',
-      icon: 'http://openweathermap.org/img/wn/03d@2x.png'
-    },
-    tokyo: {
-      temperature: '24°C',
-      condition: 'clear sky',
-      icon: 'http://openweathermap.org/img/wn/01d@2x.png'
-    },
-    denver: {
-      temperature: '14°C',
-      condition: 'sunny',
-      icon: 'http://openweathermap.org/img/wn/01d@2x.png'
-    }
-  };
+  const lowerLoc = location.toLowerCase();
 
-  const key = location.toLowerCase();
-  const data = mockWeather[key] || mockWeather['denver'];
+  try {
+    const weatherDoc = await Weather.findOne({ location: lowerLoc });
+    if (!weatherDoc) throw new Error(`No weather data for ${location}`);
 
-  return {
-    location,
-    ...data
-  };
+    return {
+      location: location,
+      temperature: weatherDoc.temperature,
+      condition: weatherDoc.condition,
+      icon: weatherDoc.icon
+    };
+  } catch (err) {
+    console.error('DB Weather lookup error:', err.message);
+    // fallback to default
+    return {
+      location: location,
+      temperature: 'N/A',
+      condition: 'Unknown',
+      icon: ''
+    };
+  }
 };
+
 
 // Public weather route using mock data
 router.get('/weather', async (req, res) => {
