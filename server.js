@@ -101,7 +101,7 @@ const getWeather = async (location) => {
   const lowerLoc = location.toLowerCase();
 
   try {
-    const weatherDoc = await Weather.findOne({ location: lowerLoc });
+    const weatherDoc = await Weather.findOne({ location: new RegExp(`^${location}$`, 'i') });
     if (!weatherDoc) throw new Error(`No weather data for ${location}`);
 
     return {
