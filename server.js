@@ -8,7 +8,7 @@ const User = require('./User'); // Make sure this has the location field
 const authJwtController = require('./auth_jwt'); // Included for later use
 const app = express();
 
-const PORT = process.env.PORT || 10000;
+const PORT = 10000;
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
