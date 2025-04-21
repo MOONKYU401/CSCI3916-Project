@@ -8,7 +8,7 @@ const User = require('./User'); // Make sure this has the location field
 const authJwtController = require('./auth_jwt'); // Included for later use
 const app = express();
 
-const PORT = 10000;
+const PORT = process.env.PORT || 10000;
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -80,12 +80,33 @@ router.post('/signin', async (req, res) => {
 
 // Mock weather service
 const getWeather = async (location) => {
-  // Replace with real API call later
-  return {
-    location,
-    temperature: '15°C',
-    condition: 'Partly Cloudy'
-  };
+  const apiKey = process.env.OPENWEATHER_API_KEY;
+
+  try {
+    const response = await axios.get(
+      'https://api.openweathermap.org/data/2.5/weather',
+      {
+        params: {
+          q: location,
+          appid: apiKey,
+          units: 'metric'
+        }
+      }
+    );
+
+    const data = response.data;
+
+    return {
+      location: `${data.name}, ${data.sys.country}`,
+      temperature: `${data.main.temp}°C`,
+      condition: data.weather[0].description,
+      icon: `http://openweathermap.org/img/wn/${data.weather[0].icon}@2x.png`
+    };
+
+  } catch (err) {
+    console.error('OpenWeatherMap error:', err.response?.data || err.message);
+    throw new Error(`Could not fetch weather for location: ${location}`);
+  }
 };
 
 // Public weather route
