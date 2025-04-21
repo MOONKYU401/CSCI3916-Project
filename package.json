@@ -14,7 +14,8 @@
     "axios": "^1.8.4",
     "bcrypt-nodejs": "^0.0.3",
     "cor": "^0.0.0",
-    "dotenv": "^16.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "mongoose": "^8.13.2",
     "passport": "^0.7.0",
@@ -26,5 +27,8 @@
     "mocha": "^11.1.0",
     "nodemon": "^3.1.9",
     "supertest": "^7.1.0"
+  },
+  "directories": {
+    "test": "test"
   }
 }
