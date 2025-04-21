@@ -6,17 +6,19 @@ const passport = require('passport');
 const jwt = require('jsonwebtoken');
 const User = require('./User');
 const authJwtController = require('./auth_jwt');
+const weatherRoutes = require('./routes/weather'); // 🔥 live weather endpoint
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
+// Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(passport.initialize());
 
 const router = express.Router();
 
-// 🧠 MongoDB Connection
+// 🧠 Connect to MongoDB
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.DB);
@@ -27,7 +29,7 @@ const connectDB = async () => {
   }
 };
 
-// ✅ Weather Schema & Model
+// ✅ Weather schema + model
 const WeatherSchema = new mongoose.Schema({
   date: { type: Date, required: true },
   location: { type: String, required: true },
@@ -48,7 +50,7 @@ const WeatherSchema = new mongoose.Schema({
 
 const Weather = mongoose.model('Weather', WeatherSchema);
 
-// 👤 Signup Route
+// 🧑‍💻 POST /signup
 router.post('/signup', async (req, res) => {
   if (!req.body.username || !req.body.password) {
     return res.status(400).json({ success: false, msg: 'Please include both username and password to signup.' });
@@ -74,7 +76,7 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-// 🔑 Signin Route
+// 🔐 POST /signin
 router.post('/signin', async (req, res) => {
   try {
     const user = await User.findOne({ username: req.body.username }).select('name username password');
@@ -99,7 +101,7 @@ router.post('/signin', async (req, res) => {
   }
 });
 
-// 🌤️ Weather Mock Lookup
+// 📦 DB Weather Mock Lookup (GET /weather)
 const getWeather = async (location) => {
   const lowerLoc = location.toLowerCase();
 
@@ -124,10 +126,11 @@ const getWeather = async (location) => {
   }
 };
 
-// 🌍 GET /weather
+// 🌤️ GET /weather (mock data by username or default to Denver)
 router.get('/weather', async (req, res) => {
   try {
     let location = 'Denver';
+
     if (req.query.username) {
       const user = await User.findOne({ username: req.query.username }).select('location');
       if (user && user.location) {
@@ -143,7 +146,7 @@ router.get('/weather', async (req, res) => {
   }
 });
 
-// 📝 POST /weather/create
+// ✏️ POST /weather/create (save mock data)
 router.post('/weather/create', async (req, res) => {
   const {
     date,
@@ -181,9 +184,13 @@ router.post('/weather/create', async (req, res) => {
   }
 });
 
-// 👇 Apply router + Connect DB + Start Server
+// 🌍 Mount live weather API route (GET /api/weather/:city)
+app.use('/api/weather', weatherRoutes);
+
+// 🔃 Mount all other local routes
 app.use('/', router);
 
+// 🚀 Start Server
 connectDB().then(() => {
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
