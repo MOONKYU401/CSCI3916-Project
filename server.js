@@ -6,8 +6,8 @@ const passport = require('passport');
 const jwt = require('jsonwebtoken');
 const User = require('./User');
 const authJwtController = require('./auth_jwt');
-const app = express();
 
+const app = express();
 const PORT = process.env.PORT || 10000;
 
 app.use(bodyParser.json());
@@ -16,7 +16,7 @@ app.use(passport.initialize());
 
 const router = express.Router();
 
-// MongoDB connection
+// 🧠 MongoDB Connection
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.DB);
@@ -27,7 +27,28 @@ const connectDB = async () => {
   }
 };
 
-// Signup route
+// ✅ Weather Schema & Model
+const WeatherSchema = new mongoose.Schema({
+  date: { type: Date, required: true },
+  location: { type: String, required: true },
+  weatherType: {
+    type: String,
+    enum: [
+      'Thunderstorm', 'Drizzle', 'Rain', 'Snow', 'Clear', 'Clouds',
+      'Mist', 'Smoke', 'Haze', 'Dust', 'Fog', 'Sand', 'Ash',
+      'Squall', 'Tornado'
+    ],
+    required: true
+  },
+  temperature: { type: Number, required: true },
+  description: { type: String },
+  humidity: { type: Number },
+  windSpeed: { type: Number }
+});
+
+const Weather = mongoose.model('Weather', WeatherSchema);
+
+// 👤 Signup Route
 router.post('/signup', async (req, res) => {
   if (!req.body.username || !req.body.password) {
     return res.status(400).json({ success: false, msg: 'Please include both username and password to signup.' });
@@ -53,7 +74,7 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-// Signin route
+// 🔑 Signin Route
 router.post('/signin', async (req, res) => {
   try {
     const user = await User.findOne({ username: req.body.username }).select('name username password');
@@ -78,7 +99,7 @@ router.post('/signin', async (req, res) => {
   }
 });
 
-// Static/mock weather service
+// 🌤️ Weather Mock Lookup
 const getWeather = async (location) => {
   const lowerLoc = location.toLowerCase();
 
@@ -89,12 +110,11 @@ const getWeather = async (location) => {
     return {
       location: location,
       temperature: weatherDoc.temperature,
-      condition: weatherDoc.condition,
+      condition: weatherDoc.weatherType,
       icon: weatherDoc.icon
     };
   } catch (err) {
     console.error('DB Weather lookup error:', err.message);
-    // fallback to default
     return {
       location: location,
       temperature: 'N/A',
@@ -104,12 +124,10 @@ const getWeather = async (location) => {
   }
 };
 
-
-// Public weather route using mock data
+// 🌍 GET /weather
 router.get('/weather', async (req, res) => {
   try {
     let location = 'Denver';
-
     if (req.query.username) {
       const user = await User.findOne({ username: req.query.username }).select('location');
       if (user && user.location) {
@@ -125,7 +143,7 @@ router.get('/weather', async (req, res) => {
   }
 });
 
-// POST /weather/create - Add weather data
+// 📝 POST /weather/create
 router.post('/weather/create', async (req, res) => {
   const {
     date,
@@ -137,7 +155,6 @@ router.post('/weather/create', async (req, res) => {
     windSpeed
   } = req.body;
 
-  // Basic validation
   if (!date || !location || !weatherType || temperature == null) {
     return res.status(400).json({
       success: false,
@@ -164,45 +181,9 @@ router.post('/weather/create', async (req, res) => {
   }
 });
 
-
-connectDB();
-
-const WeatherSchema = new mongoose.Schema({
-  date: {
-    type: Date,
-    required: true,
-  },
-  location: {
-    type: String,
-    required: true,
-  },
-  weatherType: {
-    type: String,
-    enum: [
-      'Thunderstorm', 'Drizzle', 'Rain', 'Snow', 'Clear', 'Clouds',
-      'Mist', 'Smoke', 'Haze', 'Dust', 'Fog', 'Sand', 'Ash',
-      'Squall', 'Tornado'
-    ],
-    required: true,
-  },
-  temperature: {
-    type: Number, // In Celsius
-    required: true,
-  },
-  description: {
-    type: String, // e.g., "light rain", "few clouds"
-  },
-  humidity: {
-    type: Number, // Percentage (0–100)
-  },
-  windSpeed: {
-    type: Number, // In m/s
-  },
-});
-
+// 👇 Apply router + Connect DB + Start Server
 app.use('/', router);
 
-// Start server after DB connection
 connectDB().then(() => {
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
