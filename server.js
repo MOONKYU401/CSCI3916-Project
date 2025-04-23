@@ -7,10 +7,11 @@ const jwt = require('jsonwebtoken');
 const User = require('./User');
 const authJwtController = require('./auth_jwt');
 const weatherRoutes = require('./routes/weather');
-
+const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
+app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(passport.initialize());
