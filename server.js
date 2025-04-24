@@ -168,7 +168,7 @@ router.get('/weather/history', authJwtController.isAuthenticated, async (req, re
   }
 });
 
-// 🔁 NEW: mock hourly forecast
+// NEW: mock hourly forecast
 router.get('/hourly', async (req, res) => {
   try {
     let location = req.query.city || 'Denver';
@@ -194,7 +194,7 @@ router.get('/hourly', async (req, res) => {
   }
 });
 
-// 🔁 NEW: mock daily forecast
+// NEW: mock daily forecast
 router.get('/forecast', async (req, res) => {
   try {
     let location = req.query.city || 'Denver';
@@ -224,7 +224,7 @@ app.use('/', router);
 // Start server
 connectDB().then(() => {
   app.listen(PORT, () => {
-    console.log(`🚀 Server running at http://localhost:${PORT}`);
+    console.log(`Server running at http://localhost:${PORT}`);
   });
 });
 
