@@ -141,7 +141,7 @@ router.post('/signin', async (req, res) => {
         const { lat, lon, name, country, state } = geo.data[0];
 
         const response = await axios.get(
-          `https://api.openweathermap.org/data/2.5/onecall?lat=${lat}&lon=${lon}&units=metric&exclude=minutely,alerts&appid=${process.env.WEATHER_API_KEY}`
+          `https://api.openweathermap.org/data/2.0/onecall?lat=${lat}&lon=${lon}&units=metric&exclude=minutely,alerts&appid=${process.env.WEATHER_API_KEY}`
         );
 
         await Weather.create({
@@ -185,7 +185,7 @@ router.get('/weather/full', async (req, res) => {
     const { lat, lon, name, country, state } = geo;
 
     const weatherRes = await axios.get(
-      `https://api.openweathermap.org/data/2.5/onecall?lat=${lat}&lon=${lon}&units=metric&exclude=minutely,alerts&appid=${process.env.WEATHER_API_KEY}`
+      `https://api.openweathermap.org/data/2.0/onecall?lat=${lat}&lon=${lon}&units=metric&exclude=minutely,alerts&appid=${process.env.WEATHER_API_KEY}`
     );
     const weatherData = weatherRes.data;
 
