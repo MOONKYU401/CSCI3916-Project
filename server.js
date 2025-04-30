@@ -18,34 +18,72 @@ app.use(passport.initialize());
 const router = express.Router();
 
 // MongoDB Connection
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.DB);
-    console.log('Connected to MongoDB');
-  } catch (err) {
-    console.error('Could not connect to MongoDB:', err.message);
+mongoose.connect(process.env.DB)
+  .then(() => console.log("Connected to MongoDB"))
+  .catch((err) => {
+    console.error("MongoDB connection error:", err.message);
     process.exit(1);
-  }
-};
+  });
 
 // Weather Schema
 const WeatherSchema = new mongoose.Schema({
-  date: { type: Date, required: true },
+  date: { type: Date, default: Date.now },
   location: { type: String, required: true },
-  weatherType: {
-    type: String,
-    enum: [
-      'Thunderstorm', 'Drizzle', 'Rain', 'Snow', 'Clear', 'Clouds',
-      'Mist', 'Smoke', 'Haze', 'Dust', 'Fog', 'Sand', 'Ash',
-      'Squall', 'Tornado'
-    ],
-    required: true
+  coordinates: {
+    lat: Number,
+    lon: Number
   },
-  temperature: { type: Number, required: true },
-  description: { type: String },
-  humidity: { type: Number },
-  windSpeed: { type: Number },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  current: {
+    dt: Number,
+    temp: Number,
+    feels_like: Number,
+    humidity: Number,
+    pressure: Number,
+    wind_speed: Number,
+    visibility: Number,
+    clouds: Number,
+    weather: [{
+      main: String,
+      description: String,
+      icon: String
+    }]
+  },
+  hourly: [{
+    dt: Number,
+    temp: Number,
+    feels_like: Number,
+    humidity: Number,
+    pressure: Number,
+    wind_speed: Number,
+    clouds: Number,
+    visibility: Number,
+    weather: [{
+      main: String,
+      description: String,
+      icon: String
+    }]
+  }],
+  daily: [{
+    dt: Number,
+    temp: {
+      day: Number,
+      min: Number,
+      max: Number,
+      night: Number,
+      eve: Number,
+      morn: Number
+    },
+    humidity: Number,
+    pressure: Number,
+    wind_speed: Number,
+    clouds: Number,
+    weather: [{
+      main: String,
+      description: String,
+      icon: String
+    }]
+  }]
 });
 
 const Weather = mongoose.model('Weather', WeatherSchema);
@@ -94,32 +132,71 @@ router.post('/signin', async (req, res) => {
       const city = req.body.location || user.location || 'Denver';
 
       try {
-        const response = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city}&units=metric&appid=${process.env.WEATHER_API_KEY}`);
+        const geo = await axios.get(`http://api.openweathermap.org/geo/1.0/direct?q=${city}&limit=1&appid=${process.env.WEATHER_API_KEY}`);
+        const { lat, lon, name, country, state } = geo.data[0];
 
-        const weather = new Weather({
-          date: new Date(),
-          location: city,
-          weatherType: response.data.weather[0].main,
-          temperature: response.data.main.temp,
-          description: response.data.weather[0].description,
-          humidity: response.data.main.humidity,
-          windSpeed: response.data.wind.speed,
-          userId: user._id
+        const response = await axios.get(`https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&units=metric&exclude=minutely,alerts&appid=${process.env.WEATHER_API_KEY}`);
+
+        await Weather.create({
+          location: `${name}, ${state || ''}, ${country}`,
+          coordinates: { lat, lon },
+          userId: user._id,
+          current: response.data.current,
+          hourly: response.data.hourly.slice(0, 24),
+          daily: response.data.daily.slice(0, 7)
         });
-
-        await weather.save();
 
         res.json({
           success: true,
           token: 'JWT ' + token,
           weather: response.data
         });
-      } catch (apiErr) {
-        res.status(500).json({ success: false, msg: 'Weather API error.' });
+      } catch (geoErr) {
+        return res.status(500).json({ success: false, msg: 'Error fetching weather.' });
       }
     });
   } catch (err) {
     res.status(500).json({ success: false, msg: 'Server error.' });
+  }
+});
+
+// GET /weather/full?city=CityName
+router.get('/weather/full', async (req, res) => {
+  const { city } = req.query;
+  if (!city) {
+    return res.status(400).json({ success: false, msg: 'City is required.' });
+  }
+
+  try {
+    const geoRes = await axios.get(`http://api.openweathermap.org/geo/1.0/direct?q=${city}&limit=1&appid=${process.env.WEATHER_API_KEY}`);
+    const geo = geoRes.data[0];
+    if (!geo) {
+      return res.status(404).json({ success: false, msg: 'City not found.' });
+    }
+
+    const { lat, lon, name, country, state } = geo;
+
+    const weatherRes = await axios.get(`https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&units=metric&exclude=minutely,alerts&appid=${process.env.WEATHER_API_KEY}`);
+    const weatherData = weatherRes.data;
+
+    await Weather.create({
+      location: `${name}, ${state || ''}, ${country}`,
+      coordinates: { lat, lon },
+      current: weatherData.current,
+      hourly: weatherData.hourly.slice(0, 24),
+      daily: weatherData.daily.slice(0, 7)
+    });
+
+    res.json({
+      success: true,
+      location: { name, state, country, lat, lon },
+      current: weatherData.current,
+      hourly: weatherData.hourly.slice(0, 24),
+      daily: weatherData.daily.slice(0, 7)
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ success: false, msg: 'Weather API error.' });
   }
 });
 
@@ -132,26 +209,7 @@ router.get('/weather/history', authJwtController.isAuthenticated, async (req, re
     const history = await Weather.find({ userId: decoded.id }).sort({ date: -1 });
     res.json({ success: true, history });
   } catch (err) {
-    res.status(500).json({ success: false, msg: 'Could not retrieve history.' });
-  }
-});
-
-// GET /weather/search
-router.get('/weather/search', async (req, res) => {
-  const { city, state, country } = req.query;
-  if (!city || !country) {
-    return res.status(400).json({ success: false, msg: 'city and country are required.' });
-  }
-
-  let query = `${city}`;
-  if (state) query += `,${state}`;
-  query += `,${country}`;
-
-  try {
-    const response = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${query}&units=metric&appid=${process.env.WEATHER_API_KEY}`);
-    res.json({ success: true, weather: response.data });
-  } catch (err) {
-    res.status(500).json({ success: false, msg: 'Weather API error.' });
+    res.status(500).json({ success: false, msg: 'Failed to retrieve history.' });
   }
 });
 
@@ -162,8 +220,4 @@ router.get('/health', (req, res) => {
 
 app.use('/', router);
 
-connectDB().then(() => {
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-});
-
-module.exports = app;
+app.listen(PORT, () => console.log(`🌐 Server running on port ${PORT}`));
