@@ -17,15 +17,15 @@ app.use(passport.initialize());
 
 const router = express.Router();
 
-// MongoDB Connection
+// ✅ MongoDB Connection
 mongoose.connect(process.env.DB)
-  .then(() => console.log("Connected to MongoDB"))
+  .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => {
-    console.error("MongoDB connection error:", err.message);
+    console.error("❌ MongoDB connection error:", err.message);
     process.exit(1);
   });
 
-// Weather Schema
+// ✅ Weather Schema
 const WeatherSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now },
   location: { type: String, required: true },
@@ -88,10 +88,12 @@ const WeatherSchema = new mongoose.Schema({
 
 const Weather = mongoose.model('Weather', WeatherSchema);
 
-// POST /signup
+//
+// 🔐 POST /signup
+//
 router.post('/signup', async (req, res) => {
   if (!req.body.username || !req.body.password) {
-    return res.status(400).json({ success: false, msg: 'Please include both username and password.' });
+    return res.status(400).json({ success: false, msg: 'Username and password are required.' });
   }
 
   try {
@@ -113,18 +115,16 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-// POST /signin
+//
+// 🔐 POST /signin
+//
 router.post('/signin', async (req, res) => {
   try {
     const user = await User.findOne({ username: req.body.username }).select('+password location');
-    if (!user) {
-      return res.status(401).json({ success: false, msg: 'User not found.' });
-    }
+    if (!user) return res.status(401).json({ success: false, msg: 'User not found.' });
 
     user.comparePassword(req.body.password, async (err, isMatch) => {
-      if (err || !isMatch) {
-        return res.status(401).json({ success: false, msg: 'Authentication failed.' });
-      }
+      if (err || !isMatch) return res.status(401).json({ success: false, msg: 'Authentication failed.' });
 
       const userToken = { id: user._id, username: user.username };
       const token = jwt.sign(userToken, process.env.SECRET_KEY);
@@ -133,9 +133,16 @@ router.post('/signin', async (req, res) => {
 
       try {
         const geo = await axios.get(`http://api.openweathermap.org/geo/1.0/direct?q=${city}&limit=1&appid=${process.env.WEATHER_API_KEY}`);
+
+        if (!geo.data || geo.data.length === 0) {
+          return res.status(404).json({ success: false, msg: `City '${city}' not found.` });
+        }
+
         const { lat, lon, name, country, state } = geo.data[0];
 
-        const response = await axios.get(`https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&units=metric&exclude=minutely,alerts&appid=${process.env.WEATHER_API_KEY}`);
+        const response = await axios.get(
+          `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&units=metric&exclude=minutely,alerts&appid=${process.env.WEATHER_API_KEY}`
+        );
 
         await Weather.create({
           location: `${name}, ${state || ''}, ${country}`,
@@ -151,32 +158,35 @@ router.post('/signin', async (req, res) => {
           token: 'JWT ' + token,
           weather: response.data
         });
-      } catch (geoErr) {
-        return res.status(500).json({ success: false, msg: 'Error fetching weather.' });
+      } catch (err) {
+        console.error('🌩️ Axios Weather Error:', err.response?.data || err.message);
+        res.status(500).json({ success: false, msg: 'Error fetching weather.' });
       }
     });
   } catch (err) {
-    res.status(500).json({ success: false, msg: 'Server error.' });
+    console.error('❌ Signin Error:', err.message);
+    res.status(500).json({ success: false, msg: 'Internal server error.' });
   }
 });
 
-// GET /weather/full?city=CityName
+//
+// 🌤️ GET /weather/full
+//
 router.get('/weather/full', async (req, res) => {
   const { city } = req.query;
-  if (!city) {
-    return res.status(400).json({ success: false, msg: 'City is required.' });
-  }
+  if (!city) return res.status(400).json({ success: false, msg: 'City is required.' });
 
   try {
     const geoRes = await axios.get(`http://api.openweathermap.org/geo/1.0/direct?q=${city}&limit=1&appid=${process.env.WEATHER_API_KEY}`);
     const geo = geoRes.data[0];
-    if (!geo) {
-      return res.status(404).json({ success: false, msg: 'City not found.' });
-    }
+
+    if (!geo) return res.status(404).json({ success: false, msg: `City '${city}' not found.` });
 
     const { lat, lon, name, country, state } = geo;
 
-    const weatherRes = await axios.get(`https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&units=metric&exclude=minutely,alerts&appid=${process.env.WEATHER_API_KEY}`);
+    const weatherRes = await axios.get(
+      `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&units=metric&exclude=minutely,alerts&appid=${process.env.WEATHER_API_KEY}`
+    );
     const weatherData = weatherRes.data;
 
     await Weather.create({
@@ -195,12 +205,14 @@ router.get('/weather/full', async (req, res) => {
       daily: weatherData.daily.slice(0, 7)
     });
   } catch (err) {
-    console.error(err.message);
+    console.error('🌩️ Full Forecast Error:', err.response?.data || err.message);
     res.status(500).json({ success: false, msg: 'Weather API error.' });
   }
 });
 
-// GET /weather/history
+//
+// 🕓 GET /weather/history (JWT Protected)
+//
 router.get('/weather/history', authJwtController.isAuthenticated, async (req, res) => {
   try {
     const token = req.headers.authorization.split(' ')[1];
@@ -209,11 +221,14 @@ router.get('/weather/history', authJwtController.isAuthenticated, async (req, re
     const history = await Weather.find({ userId: decoded.id }).sort({ date: -1 });
     res.json({ success: true, history });
   } catch (err) {
+    console.error('❌ History Fetch Error:', err.message);
     res.status(500).json({ success: false, msg: 'Failed to retrieve history.' });
   }
 });
 
-// GET /health
+//
+// 🧪 GET /health
+//
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Weather API is healthy 🌤️' });
 });
