@@ -25,6 +25,7 @@ router.get("/", async (req, res) => {
   res.json(user.history || []);
 });
 
+
 // POST: add a city
 router.post("/", async (req, res) => {
   const payload = verifyToken(req);
@@ -33,11 +34,25 @@ router.post("/", async (req, res) => {
   const { city } = req.body;
   if (!city) return res.status(400).json({ error: "City required" });
 
-  await User.findByIdAndUpdate(payload.id, {
-    $addToSet: { history: city },
-  });
-  res.json({ message: "City saved" });
+  try {
+    const user = await User.findById(payload.id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    if (user.history.includes(city)) {
+      return res.status(409).json({ error: "City already saved" });
+    }
+
+    await User.findByIdAndUpdate(payload.id, {
+      $addToSet: { history: city },
+    });
+
+    res.json({ message: "City saved" });
+  } catch (err) {
+    console.error("Error saving city:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
+
 
 // DELETE: remove a city
 router.delete("/", async (req, res) => {
